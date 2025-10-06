@@ -16,6 +16,8 @@ const loginSchema = Joi.object({
 	password: Joi.string().required()
 });
 
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-do-not-use-in-prod';
+
 /**
  * @openapi
  * /auth/register:
@@ -44,16 +46,20 @@ const loginSchema = Joi.object({
  *         description: Email already in use
  */
 router.post('/register', async (req, res) => {
-	const { error, value } = registerSchema.validate(req.body);
-	if (error) return res.status(400).json({ error: error.message });
+	try {
+		const { error, value } = registerSchema.validate(req.body);
+		if (error) return res.status(400).json({ error: error.message });
 
-	const { email, password } = value;
-	const existing = await User.findOne({ email });
-	if (existing) return res.status(409).json({ error: 'Email already in use' });
+		const { email, password } = value;
+		const existing = await User.findOne({ email });
+		if (existing) return res.status(409).json({ error: 'Email already in use' });
 
-	const passwordHash = await bcrypt.hash(password, 10);
-	const user = await User.create({ email, passwordHash });
-	return res.status(201).json({ id: user._id, email: user.email, createdAt: user.createdAt });
+		const passwordHash = await bcrypt.hash(password, 10);
+		const user = await User.create({ email, passwordHash });
+		return res.status(201).json({ id: user._id, email: user.email, createdAt: user.createdAt });
+	} catch (err) {
+		return res.status(500).json({ error: 'Internal error' });
+	}
 });
 
 /**
@@ -81,18 +87,22 @@ router.post('/register', async (req, res) => {
  *         description: Invalid credentials
  */
 router.post('/login', async (req, res) => {
-	const { error, value } = loginSchema.validate(req.body);
-	if (error) return res.status(400).json({ error: error.message });
+	try {
+		const { error, value } = loginSchema.validate(req.body);
+		if (error) return res.status(400).json({ error: error.message });
 
-	const { email, password } = value;
-	const user = await User.findOne({ email });
-	if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+		const { email, password } = value;
+		const user = await User.findOne({ email });
+		if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
-	const valid = await bcrypt.compare(password, user.passwordHash);
-	if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+		const valid = await bcrypt.compare(password, user.passwordHash);
+		if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
-	const token = jwt.sign({}, process.env.JWT_SECRET, { subject: String(user._id), expiresIn: '7d' });
-	return res.json({ token });
+		const token = jwt.sign({}, JWT_SECRET, { subject: String(user._id), expiresIn: '7d' });
+		return res.json({ token });
+	} catch (err) {
+		return res.status(500).json({ error: 'Internal error' });
+	}
 });
 
 export default router; 

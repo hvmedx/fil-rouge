@@ -2,43 +2,41 @@
 
 ## Structure
 - `server/`: API Node/Express + MongoDB
-- `client/`: Frontend React (à venir)
+- `client/`: Frontend React (Vite)
 
 ## Prérequis
 - Node 18+
-- Un cluster MongoDB Atlas
+- Un cluster MongoDB Atlas (optionnel en dev, fallback mémoire)
 
-## Configuration
-Créez un fichier `server/.env` à partir de `server/.env.example`:
-
-```
-PORT=4000
-MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<db>?retryWrites=true&w=majority&appName=<app>
-JWT_SECRET=supersecretchangeme
-SWAGGER_SERVER_URL=http://localhost:4000
-```
-
-## Lancer l'API
+## Backend
+Créez `server/.env` depuis `server/.env.example` et lancez:
 ```
 cd server
 npm install
 npm run dev
 ```
-
 - API: `http://localhost:4000`
 - Docs Swagger: `http://localhost:4000/docs`
-- Healthcheck: `http://localhost:4000/health`
+
+## Frontend
+Créez `client/.env` depuis `client/.env.example` (ou laissez le défaut):
+```
+VITE_API_URL=http://localhost:4000
+```
+Lancez:
+```
+cd client
+npm install
+npm run dev
+```
+- UI: `http://localhost:5173`
 
 ## Endpoints Auth
-- POST `/auth/register` { email, password }
-- POST `/auth/login` { email, password } -> { token }
+- POST `/auth/register`
+- POST `/auth/login` -> `{ token }`
 
-## Contacts (protégé JWT)
+## Contacts (JWT requis)
 - GET `/contacts`
 - POST `/contacts`
 - PATCH `/contacts/:id`
-- DELETE `/contacts/:id`
-
-## TODO Frontend
-- Pages: Login, Register, Contacts (liste + ajout + édition/suppression)
-- Intégration avec l'API 
+- DELETE `/contacts/:id` 
