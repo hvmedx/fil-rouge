@@ -1,31 +1,44 @@
 import { useState } from 'react';
 import { api } from '../lib/api.js';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import Card from '../components/ui/Card.jsx';
+import Input from '../components/ui/Input.jsx';
+import Button from '../components/ui/Button.jsx';
+import { useToast } from '../components/ui/Toast.jsx';
 
 export default function Register() {
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [error, setError] = useState('');
 	const navigate = useNavigate();
+	const { pushToast } = useToast();
 
 	async function onSubmit(e) {
 		e.preventDefault();
 		setError('');
 		try {
 			await api.post('/auth/register', { email, password });
+			pushToast({ title: 'Account created' });
 			navigate('/login');
 		} catch (err) {
-			setError(err.response?.data?.error || 'Registration failed');
+			const msg = err.response?.data?.error || (err.response?.status === 409 ? 'Email already in use' : 'Registration failed');
+			setError(msg);
+			pushToast({ title: 'Registration failed', description: msg, type: 'error' });
 		}
 	}
 
 	return (
-		<form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
-			<h2>Register</h2>
-			<input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-			<input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-			<button type="submit">Create account</button>
-			{error && <div style={{ color: 'red' }}>{error}</div>}
-		</form>
+		<Card>
+			<form onSubmit={onSubmit} className="grid">
+				<h2>Create your account</h2>
+				<label>Email</label>
+				<Input placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+				<label>Password</label>
+				<Input placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+				<Button variant="primary" type="submit">Register</Button>
+				{error && <div style={{ color: 'var(--danger)' }}>{error}</div>}
+				<div className="helper">Already have an account? <Link to="/login">Login</Link></div>
+			</form>
+		</Card>
 	);
 }

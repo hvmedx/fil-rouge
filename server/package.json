@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "description": "MyContacts backend API (Express + MongoDB)",
   "type": "module",
-  "main": "src/index.js",
+  "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js",
-    "test": "echo \"No tests yet\" && exit 0"
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +26,12 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0",
     "nodemon": "^3.1.7"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {}
   }
 }
