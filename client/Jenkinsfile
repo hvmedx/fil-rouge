@@ -61,7 +61,8 @@ pipeline {
         stage('SonarQube') {
             steps {
                 dir('client') {
-                    withSonarQubeEnv('sonarqube') {
+                    // Project-scoped Sonar token (sqp_...) → use the web-specific credential.
+                    withSonarQubeEnv(installationName: 'sonarqube', credentialsId: 'sonar-token-web') {
                         sh '''
                             sonar-scanner \
                                 -Dsonar.host.url=$SONAR_HOST_URL \

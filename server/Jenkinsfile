@@ -67,7 +67,10 @@ pipeline {
         stage('SonarQube') {
             steps {
                 dir('server') {
-                    withSonarQubeEnv('sonarqube') {
+                    // Project-scoped Sonar token (sqp_...) → use the api-specific credential.
+                    // Switch to a Global Analysis Token (squ_...) + a single 'sonar-token' credential
+                    // when you don't want per-project tokens.
+                    withSonarQubeEnv(installationName: 'sonarqube', credentialsId: 'sonar-token-api') {
                         sh '''
                             sonar-scanner \
                                 -Dsonar.host.url=$SONAR_HOST_URL \
