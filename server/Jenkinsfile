@@ -42,18 +42,24 @@ pipeline {
 
         stage('Lint') {
             steps {
-                dir('server') { sh 'npx --yes eslint "src/**/*.js" || true' }
+                dir('server') {
+                    sh '''
+                        if [ -f eslint.config.js ] || [ -f .eslintrc.js ] || [ -f .eslintrc.json ]; then
+                            npx --yes eslint "src/**/*.js" || true
+                        else
+                            echo "No ESLint config — skipping lint"
+                        fi
+                    '''
+                }
             }
         }
 
         stage('Test') {
             steps {
                 dir('server') {
-                    sh '''
-                        npx --yes jest --runInBand --coverage \
-                            --coverageReporters=lcov --coverageReporters=text \
-                            --reporters=default
-                    '''
+                    // npm test in package.json already sets NODE_OPTIONS for ESM Jest.
+                    // The "--" passes extra flags through to jest.
+                    sh 'npm test -- --coverage --coverageReporters=lcov --coverageReporters=text'
                 }
             }
         }
@@ -63,7 +69,7 @@ pipeline {
                 dir('server') {
                     withSonarQubeEnv('sonarqube') {
                         sh '''
-                            npx --yes sonar-scanner \
+                            sonar-scanner \
                                 -Dsonar.host.url=$SONAR_HOST_URL \
                                 -Dsonar.token=$SONAR_AUTH_TOKEN
                         '''

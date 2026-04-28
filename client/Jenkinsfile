@@ -37,14 +37,23 @@ pipeline {
 
         stage('Lint') {
             steps {
-                dir('client') { sh 'npx --yes eslint "src/**/*.{js,jsx}" || true' }
+                dir('client') {
+                    sh '''
+                        if [ -f eslint.config.js ] || [ -f .eslintrc.js ] || [ -f .eslintrc.json ]; then
+                            npx --yes eslint "src/**/*.{js,jsx}" || true
+                        else
+                            echo "No ESLint config — skipping lint"
+                        fi
+                    '''
+                }
             }
         }
 
         stage('Test') {
             steps {
                 dir('client') {
-                    sh 'npx --yes vitest run --coverage --reporter=default'
+                    // Vitest is ESM-native and the project already declares @vitest/coverage-v8.
+                    sh 'npm test -- --coverage'
                 }
             }
         }
@@ -54,7 +63,7 @@ pipeline {
                 dir('client') {
                     withSonarQubeEnv('sonarqube') {
                         sh '''
-                            npx --yes sonar-scanner \
+                            sonar-scanner \
                                 -Dsonar.host.url=$SONAR_HOST_URL \
                                 -Dsonar.token=$SONAR_AUTH_TOKEN
                         '''

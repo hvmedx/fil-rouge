@@ -21,8 +21,18 @@ RUN apt-get update \
 
 # Node 20 (handy for running 'npm test' directly on the controller for small jobs)
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
+    && apt-get install -y nodejs unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install sonar-scanner CLI (avoids per-build npx download).
+# Java is already provided by the Jenkins base image (jdk17).
+ARG SONAR_SCANNER_VERSION=5.0.1.3006
+RUN curl -fsSL -o /tmp/sonar-scanner.zip \
+        "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux.zip" \
+    && unzip -q /tmp/sonar-scanner.zip -d /opt \
+    && ln -s "/opt/sonar-scanner-${SONAR_SCANNER_VERSION}-linux" /opt/sonar-scanner \
+    && ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner \
+    && rm /tmp/sonar-scanner.zip
 
 # Add the jenkins user to a 'docker' group whose gid matches the host's docker.sock
 # (default 999 on Ubuntu). Override at build time with --build-arg DOCKER_GID=<n>.

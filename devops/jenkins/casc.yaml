@@ -24,12 +24,4 @@ unclassified:
         serverUrl: "http://sonarqube:9000"
         credentialsId: "sonar-token"
 
-tool:
-  sonarRunnerInstallation:
-    installations:
-      - name: "sonar-scanner"
-        properties:
-          - installSource:
-              installers:
-                - sonarRunnerInstaller:
-                    id: "5.0.1.3006"
+# sonar-scanner is baked into the Jenkins image at /usr/local/bin/sonar-scanner — no tool installer needed
