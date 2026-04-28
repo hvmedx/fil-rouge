@@ -1,0 +1,147 @@
+// Pipeline: Web SPA (React + Vite)
+// CI:  install → lint → test (Vitest) → coverage → SonarQube
+// CD:  build image → scan → push DockerHub → deploy locally on the 'devops' network
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        ansiColor('xterm')
+        disableConcurrentBuilds()
+        timeout(time: 25, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+
+    environment {
+        IMAGE_NAME      = 'mycontacts-web'
+        DOCKERHUB_USER  = credentials('dockerhub-user')
+        DOCKERHUB_CREDS = 'dockerhub-creds'
+        CONTAINER_NAME  = 'mycontacts-web'
+        DEVOPS_NETWORK  = 'devops'
+        // Backend reachable on the host from the user's browser:
+        VITE_API_URL    = 'http://localhost:4000'
+        IMAGE_TAG       = "${env.BUILD_NUMBER}"
+        IMAGE_FULL      = "${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+        IMAGE_LATEST    = "${DOCKERHUB_USER}/${IMAGE_NAME}:latest"
+    }
+
+    stages {
+        stage('Checkout') { steps { checkout scm } }
+
+        stage('Install') {
+            steps {
+                dir('client') { sh 'npm ci' }
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                dir('client') { sh 'npx --yes eslint "src/**/*.{js,jsx}" || true' }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                dir('client') {
+                    sh 'npx --yes vitest run --coverage --reporter=default'
+                }
+            }
+        }
+
+        stage('SonarQube') {
+            steps {
+                dir('client') {
+                    withSonarQubeEnv('sonarqube') {
+                        sh '''
+                            npx --yes sonar-scanner \
+                                -Dsonar.host.url=$SONAR_HOST_URL \
+                                -Dsonar.token=$SONAR_AUTH_TOKEN
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Build image') {
+            steps {
+                dir('client') {
+                    sh '''
+                        docker build \
+                            --build-arg VITE_API_URL=${VITE_API_URL} \
+                            --build-arg BUILD_SHA=${GIT_COMMIT:-${BUILD_NUMBER}} \
+                            -t ${IMAGE_FULL} \
+                            -t ${IMAGE_LATEST} .
+                    '''
+                }
+            }
+        }
+
+        stage('Scan image (Trivy)') {
+            steps {
+                sh '''
+                    docker run --rm \
+                        -v /var/run/docker.sock:/var/run/docker.sock \
+                        aquasec/trivy:latest image \
+                        --severity HIGH,CRITICAL --exit-code 0 --no-progress \
+                        ${IMAGE_FULL} || true
+                '''
+            }
+        }
+
+        stage('Delivery: push DockerHub') {
+            when { branch 'main' }
+            steps {
+                withCredentials([usernamePassword(credentialsId: env.DOCKERHUB_CREDS,
+                                                  usernameVariable: 'DH_USER',
+                                                  passwordVariable: 'DH_PASS')]) {
+                    sh '''
+                        echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin
+                        docker push ${IMAGE_FULL}
+                        docker push ${IMAGE_LATEST}
+                        docker logout
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy: local docker run') {
+            when { branch 'main' }
+            steps {
+                sh '''
+                    docker rm -f ${CONTAINER_NAME} 2>/dev/null || true
+                    docker run -d \
+                        --name ${CONTAINER_NAME} \
+                        --network ${DEVOPS_NETWORK} \
+                        --restart unless-stopped \
+                        -p 3001:80 \
+                        ${IMAGE_FULL}
+                    docker image prune -f
+                '''
+            }
+        }
+
+        stage('Smoke test') {
+            when { branch 'main' }
+            steps {
+                sh '''
+                    for i in 1 2 3 4 5; do
+                        code=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:3001/)
+                        if [ "$code" = "200" ]; then echo "Web OK"; exit 0; fi
+                        sleep 3
+                    done
+                    echo "smoke test failed (last code: $code)"; exit 1
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker image prune -f || true'
+            cleanWs()
+        }
+        success { echo "Build #${env.BUILD_NUMBER} (${env.IMAGE_FULL}) deployed" }
+        failure { echo "Build #${env.BUILD_NUMBER} FAILED" }
+    }
+}

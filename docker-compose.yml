@@ -1,0 +1,59 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: mycontacts-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks: [mycontacts]
+
+  api:
+    build:
+      context: ./server
+      args:
+        BUILD_SHA: ${BUILD_SHA:-dev}
+    image: ${DOCKERHUB_USER:-local}/mycontacts-api:${TAG:-dev}
+    container_name: mycontacts-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      MONGODB_URI: mongodb://mongo:27017/mycontacts
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+    depends_on: [mongo]
+    ports:
+      - "4000:4000"
+    networks: [mycontacts]
+
+  web:
+    build:
+      context: ./client
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000}
+        BUILD_SHA: ${BUILD_SHA:-dev}
+    image: ${DOCKERHUB_USER:-local}/mycontacts-web:${TAG:-dev}
+    container_name: mycontacts-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on: [api]
+    networks: [mycontacts]
+
+  landing:
+    build:
+      context: ./landing
+      args:
+        BUILD_SHA: ${BUILD_SHA:-dev}
+    image: ${DOCKERHUB_USER:-local}/mycontacts-landing:${TAG:-dev}
+    container_name: mycontacts-landing
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    networks: [mycontacts]
+
+volumes:
+  mongo-data:
+
+networks:
+  mycontacts:
+    driver: bridge

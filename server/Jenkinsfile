@@ -1,0 +1,161 @@
+// Pipeline: Backend API (Express + MongoDB)
+// CI:  install → lint → test → coverage → SonarQube
+// CD:  build image → scan → push to DockerHub → deploy locally on the 'devops' Docker network
+//
+// Why no SSH? Jenkins runs on the same Docker host as the apps. The host's docker socket
+// is mounted into the Jenkins container, so 'docker run' here = container created on the host.
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        ansiColor('xterm')
+        disableConcurrentBuilds()
+        timeout(time: 25, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+
+    environment {
+        IMAGE_NAME      = 'mycontacts-api'
+        DOCKERHUB_USER  = credentials('dockerhub-user')
+        DOCKERHUB_CREDS = 'dockerhub-creds'
+        CONTAINER_NAME  = 'mycontacts-api'
+        DEVOPS_NETWORK  = 'devops'
+        IMAGE_TAG       = "${env.BUILD_NUMBER}"
+        IMAGE_FULL      = "${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+        IMAGE_LATEST    = "${DOCKERHUB_USER}/${IMAGE_NAME}:latest"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install') {
+            steps {
+                dir('server') { sh 'npm ci' }
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                dir('server') { sh 'npx --yes eslint "src/**/*.js" || true' }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                dir('server') {
+                    sh '''
+                        npx --yes jest --runInBand --coverage \
+                            --coverageReporters=lcov --coverageReporters=text \
+                            --reporters=default
+                    '''
+                }
+            }
+        }
+
+        stage('SonarQube') {
+            steps {
+                dir('server') {
+                    withSonarQubeEnv('sonarqube') {
+                        sh '''
+                            npx --yes sonar-scanner \
+                                -Dsonar.host.url=$SONAR_HOST_URL \
+                                -Dsonar.token=$SONAR_AUTH_TOKEN
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Build image') {
+            steps {
+                dir('server') {
+                    sh '''
+                        docker build \
+                            --build-arg BUILD_SHA=${GIT_COMMIT:-${BUILD_NUMBER}} \
+                            -t ${IMAGE_FULL} \
+                            -t ${IMAGE_LATEST} .
+                    '''
+                }
+            }
+        }
+
+        stage('Scan image (Trivy)') {
+            steps {
+                sh '''
+                    docker run --rm \
+                        -v /var/run/docker.sock:/var/run/docker.sock \
+                        aquasec/trivy:latest image \
+                        --severity HIGH,CRITICAL --exit-code 0 --no-progress \
+                        ${IMAGE_FULL} || true
+                '''
+            }
+        }
+
+        stage('Delivery: push DockerHub') {
+            when { branch 'main' }
+            steps {
+                withCredentials([usernamePassword(credentialsId: env.DOCKERHUB_CREDS,
+                                                  usernameVariable: 'DH_USER',
+                                                  passwordVariable: 'DH_PASS')]) {
+                    sh '''
+                        echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin
+                        docker push ${IMAGE_FULL}
+                        docker push ${IMAGE_LATEST}
+                        docker logout
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy: local docker run') {
+            when { branch 'main' }
+            steps {
+                sh '''
+                    JWT_SECRET="${JWT_SECRET:-$(openssl rand -hex 32)}"
+                    docker rm -f ${CONTAINER_NAME} 2>/dev/null || true
+                    docker run -d \
+                        --name ${CONTAINER_NAME} \
+                        --network ${DEVOPS_NETWORK} \
+                        --restart unless-stopped \
+                        -e NODE_ENV=production \
+                        -e PORT=4000 \
+                        -e MONGODB_URI=mongodb://mongo:27017/mycontacts \
+                        -e JWT_SECRET="$JWT_SECRET" \
+                        -p 4000:4000 \
+                        ${IMAGE_FULL}
+                    docker image prune -f
+                '''
+            }
+        }
+
+        stage('Smoke test') {
+            when { branch 'main' }
+            steps {
+                sh '''
+                    for i in 1 2 3 4 5 6 7 8 9 10; do
+                        if curl -fsS http://localhost:4000/health | grep -q '"ok"'; then
+                            echo "API healthy"; exit 0
+                        fi
+                        sleep 3
+                    done
+                    echo "/health did not come up"; exit 1
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker image prune -f || true'
+            cleanWs()
+        }
+        success { echo "Build #${env.BUILD_NUMBER} (${env.IMAGE_FULL}) deployed" }
+        failure { echo "Build #${env.BUILD_NUMBER} FAILED" }
+    }
+}

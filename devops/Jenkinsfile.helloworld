@@ -1,0 +1,63 @@
+// Hello-world pipeline (devops checklist).
+// Use as a sanity check after Jenkins installation:
+//   - confirms the agent runs
+//   - confirms shell access
+//   - confirms the Docker CLI is reachable from inside Jenkins
+//
+// In Jenkins UI: New Item → Pipeline → "Pipeline script from SCM"
+//   Repo URL: this repo
+//   Script Path: devops/Jenkinsfile.helloworld
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        ansiColor('xterm')
+        timeout(time: 5, unit: 'MINUTES')
+    }
+
+    stages {
+        stage('Hello') {
+            steps {
+                echo 'Hello, World — Jenkins is alive!'
+            }
+        }
+
+        stage('Where am I?') {
+            steps {
+                sh '''
+                    echo "User:    $(whoami)"
+                    echo "Host:    $(hostname)"
+                    echo "Pwd:     $(pwd)"
+                    echo "Date:    $(date -u)"
+                '''
+            }
+        }
+
+        stage('Tools available') {
+            steps {
+                sh '''
+                    echo "--- node ---";   node --version  || echo "no node"
+                    echo "--- npm ---";    npm --version   || echo "no npm"
+                    echo "--- git ---";    git --version   || echo "no git"
+                    echo "--- docker ---"; docker --version || echo "no docker"
+                '''
+            }
+        }
+
+        stage('Docker reachable from Jenkins') {
+            steps {
+                sh '''
+                    docker info --format 'Daemon OK on {{.OperatingSystem}}, {{.ServerVersion}}'
+                    docker run --rm hello-world | tail -5
+                '''
+            }
+        }
+    }
+
+    post {
+        success { echo 'helloworld pipeline OK — environment is ready.' }
+        failure { echo 'helloworld pipeline FAILED — check logs above.' }
+    }
+}

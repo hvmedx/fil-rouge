@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>MyContacts — Landing</title>
+		<link rel="stylesheet" href="/styles.css" />
+	</head>
+	<body>
+		<header class="hero">
+			<div class="container">
+				<div class="logo">MyContacts</div>
+				<h1>Ton carnet d'adresses, en ligne et chiffré.</h1>
+				<p class="lead">
+					Centralise tes contacts, accède-les depuis n'importe où, garde le contrôle de tes données.
+				</p>
+				<div class="cta-row">
+					<a class="btn btn-primary" href="#features">Découvrir</a>
+					<a class="btn" href="#contact">Nous contacter</a>
+				</div>
+			</div>
+		</header>
+
+		<section id="features" class="section">
+			<div class="container grid-3">
+				<div class="card">
+					<h3>Synchronisé</h3>
+					<p>Tes contacts disponibles sur tous tes appareils, en temps réel.</p>
+				</div>
+				<div class="card">
+					<h3>Sécurisé</h3>
+					<p>Authentification JWT, mots de passe hashés bcrypt, isolation par utilisateur.</p>
+				</div>
+				<div class="card">
+					<h3>Open source</h3>
+					<p>Code public, déployable sur ton propre cloud — aucune donnée chez nous.</p>
+				</div>
+			</div>
+		</section>
+
+		<section id="contact" class="section section-alt">
+			<div class="container narrow">
+				<h2>Une question ?</h2>
+				<p>Écris-nous : <a href="mailto:hello@mycontacts.example">hello@mycontacts.example</a></p>
+			</div>
+		</section>
+
+		<footer class="footer">
+			<div class="container row-between">
+				<span>© MyContacts — Projet Fil Rouge CICD</span>
+				<span class="build">build: <span id="build">dev</span></span>
+			</div>
+		</footer>
+
+		<script src="/main.js" defer></script>
+	</body>
+</html>

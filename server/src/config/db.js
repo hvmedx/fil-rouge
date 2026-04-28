@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 
 let memoryServer = null;
 
@@ -7,6 +6,7 @@ export async function connect() {
 	let mongoUri = process.env.MONGODB_URI;
 	mongoose.set('strictQuery', true);
 	if (!mongoUri) {
+		const { MongoMemoryServer } = await import('mongodb-memory-server');
 		memoryServer = await MongoMemoryServer.create();
 		mongoUri = memoryServer.getUri();
 		console.log('Using in-memory MongoDB instance');
